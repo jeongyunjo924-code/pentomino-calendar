@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>펜토미노 달력 퍼즐</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>
+  /* 배치: 넓은 화면은 달력판 왼쪽 · 조각 상자 오른쪽, 세로 화면은 위아래 */
+  :root {
+    --bg: #1E3550; --bg-2: #2B4C72; --bg-3: #152A41;
+    --paper: #F7F3E8; --paper-2: #E8E0CC; --ink: #14213D;
+    --sun: #FFC53D; --text: #F4F7FB; --muted: #A9BCD0; --good: #2FB344; --bad: #FF6B6B;
+    --display: 'Jua', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+    --body: 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif;
+    --top: clamp(58px, 9vh, 104px);
+    color-scheme: dark;
+    font-size: clamp(14px, 0.9vw + 0.45vh, 28px);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--body);
+    touch-action: none; overscroll-behavior: none; user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; border: none; }
+  button:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+  #app {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    background: radial-gradient(circle at 1px 1px, rgba(255,255,255,.05) 1px, transparent 0) 0 0 / 22px 22px, var(--bg);
+  }
+
+  /* ---------- 상단 ---------- */
+  #topbar {
+    flex: none; min-height: var(--top); display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
+    padding: .45rem 1rem; background: var(--bg-3); border-bottom: 4px solid #0E1D2E;
+  }
+  .brand { font-family: var(--display); font-size: 1.5rem; display: flex; align-items: center; gap: .5rem; white-space: nowrap; }
+  .brand svg { width: 1.6em; height: 1.6em; }
+  #goal {
+    display: flex; align-items: center; gap: .6rem; background: var(--paper); color: var(--ink);
+    border-radius: 14px; padding: .25rem .9rem .25rem .7rem; box-shadow: 0 4px 0 #0E1D2E;
+  }
+  #goal small { font-size: .85rem; color: #6B6150; }
+  #goal b { font-family: var(--display); font-weight: normal; font-size: 2rem; line-height: 1.05; color: #C2410C; }
+  #clock { font-family: var(--display); font-size: 1.7rem; font-variant-numeric: tabular-nums; min-width: 4.2em; text-align: center; }
+  .spacer { flex: 1; }
+  .btn {
+    border-radius: 12px; min-height: 2.9rem; padding: .35rem .95rem; background: var(--bg-2);
+    font-family: var(--display); font-size: 1.08rem; box-shadow: 0 4px 0 #0E1D2E; white-space: nowrap;
+    transition: transform .08s, box-shadow .08s;
+  }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #0E1D2E; }
+  .btn.primary { background: var(--sun); color: var(--ink); box-shadow: 0 4px 0 #B07F12; }
+  .btn:disabled { opacity: .35; pointer-events: none; }
+  .btns { display: flex; gap: .45rem; flex-wrap: wrap; }
+
+  /* ---------- 본문 ---------- */
+  #main { flex: 1; min-height: 0; display: flex; gap: 1rem; padding: 1rem; }
+  #boardPanel { flex: 1.35; min-width: 0; min-height: 0; position: relative; }
+  #trayPanel {
+    flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column;
+    background: var(--bg-3); border-radius: 20px; padding: .8rem; box-shadow: inset 0 4px 14px rgba(0,0,0,.35);
+  }
+  .tray-head { display: flex; justify-content: space-between; align-items: baseline; gap: .8rem; margin-bottom: .4rem; }
+  .tray-head h2 { margin: 0; font-family: var(--display); font-weight: normal; font-size: 1.4rem; white-space: nowrap; }
+  .hint-text { font-size: .9rem; color: var(--muted); }
+  #trayArea { flex: 1; min-height: 0; position: relative; }
+  .slot { position: absolute; border-radius: 14px; border: 2px dashed rgba(255,255,255,.1); }
+  #board { position: absolute; overflow: visible; filter: drop-shadow(0 10px 0 rgba(8,18,30,.45)); }
+  #board .ghost { fill: none; stroke-width: .12; stroke-linecap: square; }
+  #board .ghost.ok { stroke: var(--good); }
+  #board .ghost.no { stroke: var(--bad); stroke-dasharray: .18 .12; }
+  #board .hole { animation: glow 1.8s ease-in-out infinite; }
+  @keyframes glow { 50% { opacity: .75; } }
+  #board.solved .frame { stroke: var(--good); }
+
+  #app.portrait #main { flex-direction: column; }
+  #app.portrait #boardPanel { flex: 1.25; }
+  #app.compact .brand span, #app.compact .hint-text { display: none; }
+  #app.compact .btn { min-height: 2.5rem; padding: .3rem .7rem; font-size: 1rem; }
+  #app.compact #goal b { font-size: 1.6rem; }
+
+  /* ---------- 조각 ---------- */
+  #layer { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  .piece { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; }
+  .piece.anim { transition: transform .28s cubic-bezier(.2,.9,.25,1); }
+  .piece.anim-fast { transition: transform .12s ease-out; }
+  .piece-inner { pointer-events: none; }
+  .piece svg { display: block; overflow: visible; transform-origin: 50% 50%; }
+  .piece rect, .piece .hitpath { pointer-events: auto; }
+  .piece.locked rect, .piece.locked .hitpath { pointer-events: none; }
+  .piece.sel svg { filter: drop-shadow(0 0 .3rem #fff) drop-shadow(0 4px 5px rgba(0,0,0,.35)); }
+  .piece.bad svg { filter: drop-shadow(0 0 .35rem var(--bad)) drop-shadow(0 0 .2rem var(--bad)); }
+  .piece.dragging svg { filter: drop-shadow(0 16px 14px rgba(0,0,0,.5)); }
+  .piece svg.spin { animation: spin .22s ease-out; }
+  .piece svg.flip { animation: flipx .3s ease-out; }
+  .piece svg.thunk { animation: thunk .32s cubic-bezier(.3,1.5,.5,1); }
+  @keyframes spin { from { transform: rotate(-90deg); } }
+  @keyframes flipx { 0% { transform: scaleX(-1); } 50% { transform: scaleX(0); } }
+  @keyframes thunk { 0% { transform: scale(1.1); filter: brightness(1.4); } 50% { transform: scale(.95); } 100% { transform: none; } }
+  .flip-btn {
+    position: absolute; left: 0; top: 0; display: none; pointer-events: auto; padding: 0;
+    width: 3rem; height: 3rem; border-radius: 50%; background: var(--sun); border: 3px solid var(--ink); color: var(--ink);
+    place-items: center; box-shadow: 0 3px 0 rgba(0,0,0,.35);
+  }
+  .flip-btn svg { width: 64%; height: 64%; }
+  .piece.sel:not(.dragging):not(.locked) .flip-btn { display: grid; }
+
+  /* ---------- 창 ---------- */
+  #toast {
+    position: fixed; left: 50%; bottom: calc(1.4rem + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 40; pointer-events: none;
+    background: var(--paper); color: var(--ink); border: 3px solid var(--ink); border-radius: 14px; padding: .5rem 1.1rem;
+    font-family: var(--display); font-size: 1.2rem; opacity: 0; transition: opacity .25s; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+  #modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(9,19,32,.6); }
+  #modal[hidden] { display: none; }
+  #card {
+    width: min(92vw, 34rem); max-height: 92vh; overflow: auto; touch-action: pan-y;
+    background: var(--paper); color: var(--ink); border-radius: 24px; padding: 1.5rem 1.7rem;
+    border: 5px solid var(--ink); box-shadow: 0 12px 0 rgba(0,0,0,.35); animation: pop .28s cubic-bezier(.2,1.4,.4,1);
+  }
+  @keyframes pop { from { transform: scale(.85); opacity: 0; } }
+  #card h3 { font-family: var(--display); font-weight: normal; font-size: 2rem; margin: 0 0 .5rem; text-wrap: balance; }
+  #card p { font-size: 1.1rem; line-height: 1.55; margin: 0 0 .8rem; }
+  .actions { display: flex; gap: .6rem; flex-wrap: wrap; justify-content: flex-end; margin-top: 1rem; }
+  .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: .4rem 0; }
+  .days button {
+    aspect-ratio: 1; border-radius: 10px; background: var(--paper-2); color: var(--ink);
+    font-family: var(--display); font-size: 1.3rem; box-shadow: 0 3px 0 #C9BFA6;
+  }
+  .days button.on { background: var(--sun); box-shadow: 0 3px 0 #B07F12; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .45rem 0; font-size: 1.05rem; flex-wrap: wrap; }
+  .seg { display: inline-flex; gap: 4px; background: var(--paper-2); border-radius: 12px; padding: 4px; }
+  .seg button { background: transparent; border-radius: 9px; padding: .45rem .9rem; font-family: var(--display); font-size: 1rem; color: #6B6150; }
+  .seg button.on { background: var(--ink); color: #fff; }
+  .note { font-size: .92rem; color: #6B6150; }
+  #fx { position: fixed; inset: 0; pointer-events: none; z-index: 45; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition-duration: .01s !important; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 7 7" aria-hidden="true"><rect x="0" y="1" width="7" height="6" rx=".8" fill="#F7F3E8"/><rect x="0" y="1" width="7" height="1.6" rx=".6" fill="#FF6B6B"/><rect x="1.4" y=".3" width=".6" height="1.6" rx=".3" fill="#14213D"/><rect x="5" y=".3" width=".6" height="1.6" rx=".3" fill="#14213D"/><rect x="3" y="3.6" width="1.2" height="1.2" fill="#FFC53D" stroke="#14213D" stroke-width=".2"/></svg>
+      <span>펜토미노 달력 퍼즐</span>
+    </div>
+    <div id="goal"><small>남길 날짜</small><b id="goalDay">14일</b></div>
+    <div id="clock">0:00</div>
+    <span class="spacer"></span>
+    <div class="btns">
+      <button class="btn" id="btnToday">오늘</button>
+      <button class="btn" id="btnPick">날짜 고르기</button>
+      <button class="btn" id="btnRandom">무작위</button>
+      <button class="btn" id="btnHint">힌트</button>
+      <button class="btn" id="btnReset">처음부터</button>
+      <button class="btn" id="btnSettings">설정</button>
+    </div>
+  </header>
+  <main id="main">
+    <section id="boardPanel"><svg id="board" xmlns="http://www.w3.org/2000/svg"></svg></section>
+    <section id="trayPanel">
+      <div class="tray-head"><h2>조각 6개</h2><span class="hint-text">터치하면 돌리고, 밀면 옮겨요. 노란 버튼은 뒤집기예요.</span></div>
+      <div id="trayArea"></div>
+    </section>
+  </main>
+  <div id="layer"></div>
+  <div id="toast"></div>
+  <canvas id="fx"></canvas>
+  <div id="modal" hidden><div id="card" role="dialog" aria-modal="true"></div></div>
+</div>
+<script>
+/* 펜토미노 달력 퍼즐 – 1~31일 달력판에서 고른 날짜 한 칸만 남기고 펜토미노 6개로 나머지를 채운다.
+ * 조각 묶음은 1~31일 모든 날짜에 답이 있는지 미리 확인한 것만 쓴다.
+ */
+(() => {
+'use strict';
+
+/* ---------- 조각과 판 ---------- */
+const SHAPES = {
+  F: [[1,0],[2,0],[0,1],[1,1],[1,2]], L: [[0,0],[0,1],[0,2],[0,3],[1,3]], N: [[1,0],[1,1],[0,2],[1,2],[0,3]],
+  P: [[0,0],[1,0],[0,1],[1,1],[0,2]], T: [[0,0],[1,0],[2,0],[1,1],[1,2]], U: [[0,0],[2,0],[0,1],[1,1],[2,1]],
+  V: [[0,0],[0,1],[0,2],[1,2],[2,2]], Y: [[1,0],[0,1],[1,1],[1,2],[1,3]],
+};
+const COLORS = { F: '#F06595', L: '#FF922B', N: '#40C057', P: '#339AF0', T: '#20C997', U: '#845EF7', V: '#FCC419', Y: '#FF6B6B' };
+// 두 묶음 모두 1~31일 모든 날짜에 답이 있음 (보통: 날짜마다 답 3가지 이상, 어려움: 답이 1가지뿐인 날도 있음)
+const LEVELS = {
+  normal: { label: '보통', ids: ['L', 'N', 'P', 'U', 'V', 'Y'] },
+  hard: { label: '어려움', ids: ['F', 'L', 'P', 'T', 'V', 'Y'] },
+};
+const COLS = 7, ROWS = 5;
+const dayXY = d => [(d - 1) % 7, Math.floor((d - 1) / 7)];
+const dayAt = (x, y) => (x >= 0 && x < COLS && y >= 0 && y < ROWS && y * 7 + x + 1 <= 31) ? y * 7 + x + 1 : 0;
+
+const norm = cells => {
+  let mx = Infinity, my = Infinity;
+  for (const [x, y] of cells) { if (x < mx) mx = x; if (y < my) my = y; }
+  return cells.map(([x, y]) => [x - mx, y - my]).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+};
+const rotCW = c => norm(c.map(([x, y]) => [-y, x]));
+const flipX = c => norm(c.map(([x, y]) => [-x, y]));
+const keyOf = c => c.map(p => p.join(',')).join(';');
+const dims = c => { let w = 0, h = 0; for (const [x, y] of c) { if (x + 1 > w) w = x + 1; if (y + 1 > h) h = y + 1; } return { w, h }; };
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function orientations(cells) {
+  const out = [], seen = new Set(); let c = norm(cells);
+  for (let f = 0; f < 2; f++) { for (let r = 0; r < 4; r++) { const k = keyOf(c); if (!seen.has(k)) { seen.add(k); out.push(c); } c = rotCW(c); } c = flipX(c); }
+  return out;
+}
+
+// 해답 찾기: 남길 날짜(hole)와 이미 고정한 조각을 빼고 나머지를 채우는 방법을 limit개까지 찾는다
+function solve(ids, hole, fixed, limit) {
+  const filled = new Uint8Array(COLS * ROWS);
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (!dayAt(x, y)) filled[y * COLS + x] = 1;
+  const [hx, hy] = dayXY(hole); filled[hy * COLS + hx] = 1;
+  const used = new Set();
+  for (const f of fixed) { used.add(f.id); for (const [x, y] of f.cells) filled[(y + f.gy) * COLS + x + f.gx] = 1; }
+  const rest = ids.filter(id => !used.has(id));
+  const opts = rest.map(id => orientations(SHAPES[id]));
+  const pick = [], out = [], usedK = new Uint8Array(rest.length);
+  (function bt() {
+    if (out.length >= limit) return;
+    let t = -1; for (let i = 0; i < filled.length; i++) if (!filled[i]) { t = i; break; }
+    if (t < 0) { out.push(pick.slice()); return; }
+    const tx = t % COLS, ty = (t / COLS) | 0;
+    for (let k = 0; k < rest.length; k++) {
+      if (usedK[k]) continue;
+      for (const o of opts[k]) {
+        const gx = tx - o[0][0], gy = ty - o[0][1];
+        let ok = true;
+        for (const [x, y] of o) { const X = x + gx, Y = y + gy; if (X < 0 || Y < 0 || X >= COLS || Y >= ROWS || filled[Y * COLS + X]) { ok = false; break; } }
+        if (!ok) continue;
+        for (const [x, y] of o) filled[(y + gy) * COLS + x + gx] = 1;
+        usedK[k] = 1; pick.push({ id: rest[k], cells: o, gx, gy });
+        bt();
+        pick.pop(); usedK[k] = 0;
+        for (const [x, y] of o) filled[(y + gy) * COLS + x + gx] = 0;
+        if (out.length >= limit) return;
+      }
+    }
+  })();
+  return out;
+}
+
+/* ---------- 상태 ---------- */
+const $ = s => document.querySelector(s);
+const ui = {
+  app: $('#app'), board: $('#board'), boardPanel: $('#boardPanel'), trayArea: $('#trayArea'), trayPanel: $('#trayPanel'),
+  layer: $('#layer'), goalDay: $('#goalDay'), clock: $('#clock'), toast: $('#toast'), modal: $('#modal'), card: $('#card'), fx: $('#fx'),
+};
+const S = { day: new Date().getDate(), level: 'normal', solved: false, startedAt: Date.now(), timerId: null, hints: 0, sound: true };
+let C = 60, B = { x: 0, y: 0 }, trayScale = .5, trayRect = null, zTop = 10, rt = 0, pieces = [], slotEls = [];
+const FLIP_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18" stroke-dasharray="2.5 2.5"/><path d="M8 7L3 12l5 5z" fill="currentColor"/><path d="M16 7l5 5-5 5z"/></svg>';
+
+function buildPieces() {
+  ui.layer.innerHTML = ''; ui.trayArea.innerHTML = '';
+  slotEls = []; pieces = [];
+  LEVELS[S.level].ids.forEach((id, i) => {
+    const slot = document.createElement('div'); slot.className = 'slot'; ui.trayArea.appendChild(slot); slotEls.push(slot);
+    const p = { id, i, cells: norm(SHAPES[id]), where: 'tray', gx: 0, gy: 0, x: 0, y: 0, s: 1, ox: 0, oy: 0, pointer: null, drag: null };
+    p.el = document.createElement('div'); p.el.className = 'piece';
+    p.inner = document.createElement('div'); p.inner.className = 'piece-inner';
+    p.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    p.flip = document.createElement('button'); p.flip.className = 'flip-btn'; p.flip.setAttribute('aria-label', '조각 뒤집기'); p.flip.innerHTML = FLIP_ICON;
+    p.inner.appendChild(p.svg); p.el.append(p.inner, p.flip);
+    ui.layer.appendChild(p.el);
+    p.el.addEventListener('pointerdown', e => onDown(e, p));
+    p.el.addEventListener('pointermove', e => onMove(e, p));
+    p.el.addEventListener('pointerup', e => onUp(e, p));
+    p.el.addEventListener('pointercancel', e => onUp(e, p));
+    p.el.addEventListener('lostpointercapture', e => { if (p.pointer === e.pointerId) onUp(e, p); });
+    p.flip.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); if (S.solved || p.pointer !== null) return; turn(p, true); select(p); });
+    pieces.push(p);
+  });
+}
+
+function renderPiece(p) {
+  const { w, h } = dims(p.cells), set = new Set(p.cells.map(q => q + ''));
+  const inS = (x, y) => set.has(x + ',' + y);
+  p.inner.style.width = w * C + 'px'; p.inner.style.height = h * C + 'px';
+  p.svg.setAttribute('width', w * C); p.svg.setAttribute('height', h * C); p.svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  let r = '', e = '', sm = '';
+  for (const [x, y] of p.cells) {
+    r += `<rect x="${x}" y="${y}" width="1" height="1"/>`;
+    if (!inS(x, y - 1)) e += `M${x} ${y}H${x + 1}`; else sm += `M${x} ${y}H${x + 1}`;
+    if (!inS(x, y + 1)) e += `M${x} ${y + 1}H${x + 1}`;
+    if (!inS(x - 1, y)) e += `M${x} ${y}V${y + 1}`; else sm += `M${x} ${y}V${y + 1}`;
+    if (!inS(x + 1, y)) e += `M${x + 1} ${y}V${y + 1}`;
+  }
+  p.svg.innerHTML =
+    `<path class="hitpath" d="${e}" stroke="transparent" stroke-width=".7" fill="none"/>` +
+    `<g fill="${COLORS[p.id]}">${r}</g>` +
+    `<path d="${sm}" stroke="rgba(20,33,61,.28)" stroke-width=".035" fill="none"/>` +
+    `<path d="${e}" stroke="#14213D" stroke-width=".09" stroke-linecap="square" fill="none"/>`;
+}
+function apply(p) {
+  p.el.style.transform = `translate3d(${p.x}px,${p.y}px,0)`;
+  p.inner.style.transformOrigin = `${p.ox}px ${p.oy}px`;
+  p.inner.style.transform = `scale(${p.s})`;
+  const { w } = dims(p.cells);
+  p.flip.style.transform = `translate(${p.ox * (1 - p.s) + w * C * p.s}px, ${p.oy * (1 - p.s)}px) translate(-35%, -65%)`;
+}
+const visualTL = p => ({ x: p.x + p.ox * (1 - p.s), y: p.y + p.oy * (1 - p.s) });
+function setRest(p, x, y, s, anim) {
+  p.ox = 0; p.oy = 0; p.x = x; p.y = y; p.s = s;
+  if (anim) {
+    const cls = anim === 'fast' ? 'anim-fast' : 'anim';
+    p.el.classList.remove('anim', 'anim-fast'); p.el.classList.add(cls);
+    clearTimeout(p.animT); p.animT = setTimeout(() => p.el.classList.remove(cls), 320);
+  }
+  apply(p);
+}
+function sendHome(p, anim) {
+  p.where = 'tray'; p.el.classList.remove('bad');
+  const r = slotEls[p.i].getBoundingClientRect(), { w, h } = dims(p.cells);
+  setRest(p, r.left + r.width / 2 - w * C * trayScale / 2, r.top + r.height / 2 - h * C * trayScale / 2, trayScale, anim);
+}
+function refreshBoard() { const r = ui.board.getBoundingClientRect(); B.x = r.left + .5 * C; B.y = r.top + .95 * C; }
+function placeOnBoard(p, anim) { refreshBoard(); p.where = 'board'; setRest(p, B.x + p.gx * C, B.y + p.gy * C, 1, anim); markBad(p); }
+
+/* ---------- 화면 배치 ---------- */
+// 판 여백: 왼·오른쪽 .5칸, 위 .95칸(달력 고리), 아래 .5칸
+const PADL = .5, PADT = .95, PADB = .5;
+function layout() {
+  const vw = innerWidth, vh = innerHeight;
+  ui.app.classList.toggle('portrait', vw < vh * 1.05);
+  ui.app.classList.toggle('compact', Math.min(vw, vh) < 700);
+  const ba = ui.boardPanel.getBoundingClientRect();
+  const gw = COLS + PADL * 2, gh = ROWS + PADT + PADB;
+  C = Math.max(24, Math.floor(Math.min(ba.width / (gw + .2), ba.height / (gh + .2))));
+  const bw = gw * C, bh = gh * C;
+  Object.assign(ui.board.style, { left: (ba.width - bw) / 2 + 'px', top: (ba.height - bh) / 2 + 'px', width: bw + 'px', height: bh + 'px' });
+  drawBoard();
+
+  trayRect = ui.trayPanel.getBoundingClientRect();
+  const ta = ui.trayArea.getBoundingClientRect();
+  let best = null;
+  for (const [c, r] of [[3, 2], [2, 3], [6, 1], [1, 6]]) {
+    const sw = ta.width / c, sh = ta.height / r, s = Math.min(sw, sh) * .86 / (4 * C);
+    if (!best || s > best.s) best = { c, r, sw, sh, s };
+  }
+  trayScale = Math.min(best.s, .85);
+  slotEls.forEach((el, i) => {
+    const col = i % best.c, row = Math.floor(i / best.c);
+    Object.assign(el.style, { left: col * best.sw + 5 + 'px', top: row * best.sh + 5 + 'px', width: best.sw - 10 + 'px', height: best.sh - 10 + 'px' });
+  });
+  for (const p of pieces) {
+    renderPiece(p);
+    if (p.pointer !== null) continue;
+    if (p.where === 'board') placeOnBoard(p, false); else sendHome(p, false);
+  }
+}
+
+function drawBoard() {
+  const svg = ui.board, W = COLS + PADL * 2, H = ROWS + PADT + PADB;
+  svg.setAttribute('viewBox', `${-PADL} ${-PADT} ${W} ${H}`);
+  let s = `<rect class="frame" x="${-PADL}" y="${-PADT}" width="${W}" height="${H}" rx=".35" fill="#F7F3E8" stroke="#14213D" stroke-width=".08"/>` +
+    `<path d="M${-PADL} ${-PADT + .35}a.35 .35 0 0 1 .35 -.35H${COLS + PADL - .35}a.35 .35 0 0 1 .35 .35V${-.3}H${-PADL}z" fill="#FF6B6B"/>` +
+    `<line x1="${-PADL}" y1="-.3" x2="${COLS + PADL}" y2="-.3" stroke="#14213D" stroke-width=".05"/>`;
+  for (const rx of [1.2, COLS - 1.2]) s += `<rect x="${rx - .12}" y="${-PADT - .25}" width=".24" height=".75" rx=".12" fill="#14213D"/>`;
+  for (let d = 1; d <= 31; d++) {
+    const [x, y] = dayXY(d), hole = d === S.day;
+    s += `<rect ${hole ? 'class="hole" ' : ''}x="${x + .04}" y="${y + .04}" width=".92" height=".92" rx=".12" fill="${hole ? '#FFC53D' : '#FFFFFF'}" stroke="${hole ? '#14213D' : '#D9CFB8'}" stroke-width="${hole ? .07 : .04}"/>` +
+      `<text x="${x + .5}" y="${y + .5}" text-anchor="middle" dominant-baseline="central" font-family="Jua, sans-serif" font-size="${hole ? .5 : .4}" fill="${hole ? '#14213D' : '#9A8F78'}">${d}</text>`;
+  }
+  s += `<path id="ghost" class="ghost" d=""/>`;
+  svg.innerHTML = s;
+}
+
+/* ---------- 놓기 판정 ---------- */
+function occupied(except) {
+  const occ = new Map();
+  for (const q of pieces) {
+    if (q === except || q.where !== 'board') continue;
+    for (const [x, y] of q.cells) { const k = (x + q.gx) + ',' + (y + q.gy); occ.set(k, (occ.get(k) || 0) + 1); }
+  }
+  return occ;
+}
+function fits(p, gx, gy, occ) {
+  for (const [x, y] of p.cells) {
+    const X = x + gx, Y = y + gy, d = dayAt(X, Y);
+    if (!d || d === S.day || occ.has(X + ',' + Y)) return false;
+  }
+  return true;
+}
+function markBad(p) { p.el.classList.toggle('bad', p.where === 'board' && !fits(p, p.gx, p.gy, occupied(p))); }
+function markAll() { for (const p of pieces) markBad(p); }
+
+function findSnap(p, x, y) {
+  refreshBoard();
+  const { w, h } = dims(p.cells), cx = x + w * C / 2, cy = y + h * C / 2, m = C * .9;
+  if (cx < B.x - m || cy < B.y - m || cx > B.x + COLS * C + m || cy > B.y + ROWS * C + m) return null;
+  const fx = (x - B.x) / C, fy = (y - B.y) / C, occ = occupied(p);
+  let best = null;
+  for (let gy = Math.floor(fy) - 1; gy <= Math.ceil(fy) + 1; gy++) for (let gx = Math.floor(fx) - 1; gx <= Math.ceil(fx) + 1; gx++) {
+    const d = Math.hypot(gx - fx, gy - fy);
+    if (d > 1.15 || !fits(p, gx, gy, occ)) continue;
+    if (!best || d < best.d) best = { gx, gy, d, ok: true };
+  }
+  return best || { gx: Math.round(fx), gy: Math.round(fy), ok: false };
+}
+function showGhost(p, snap) {
+  const gp = ui.board.querySelector('#ghost'); if (!gp) return;
+  if (!snap) { gp.setAttribute('d', ''); return; }
+  const set = new Set(p.cells.map(q => q + '')); let d = '';
+  for (const [x0, y0] of p.cells) {
+    const x = x0 + snap.gx, y = y0 + snap.gy;
+    if (!set.has([x0, y0 - 1] + '')) d += `M${x} ${y}H${x + 1}`;
+    if (!set.has([x0, y0 + 1] + '')) d += `M${x} ${y + 1}H${x + 1}`;
+    if (!set.has([x0 - 1, y0] + '')) d += `M${x} ${y}V${y + 1}`;
+    if (!set.has([x0 + 1, y0] + '')) d += `M${x + 1} ${y}V${y + 1}`;
+  }
+  gp.setAttribute('d', d); gp.setAttribute('class', snap.ok ? 'ghost ok' : 'ghost no');
+}
+
+/* ---------- 터치 (손가락마다 따로) ---------- */
+function select(p) {
+  for (const q of pieces) if (q !== p) q.el.classList.remove('sel');
+  p.el.classList.add('sel');
+  clearTimeout(p.selT); p.selT = setTimeout(() => p.el.classList.remove('sel'), 4500);
+}
+function onDown(e, p) {
+  if (p.pointer !== null || S.solved) return;
+  if (e.button !== undefined && e.button > 0) return;
+  e.preventDefault();
+  try { p.el.setPointerCapture(e.pointerId); } catch (_) { /* 무시 */ }
+  p.pointer = e.pointerId; p.drag = { sx: e.clientX, sy: e.clientY, t: performance.now(), moved: false };
+  p.el.style.zIndex = ++zTop; select(p); unlockAudio();
+}
+function beginDrag(p, fx, fy) {
+  p.el.classList.remove('anim', 'anim-fast', 'bad'); p.el.classList.add('dragging');
+  const tl = visualTL(p), qx = (fx - tl.x) / p.s, qy = (fy - tl.y) / p.s;
+  p.ox = qx; p.oy = qy; p.x = fx - qx; p.y = fy - qy; apply(p); void p.inner.offsetWidth;
+  p.s = 1; apply(p); p.where = 'drag'; markAll();
+}
+function onMove(e, p) {
+  if (e.pointerId !== p.pointer || !p.drag) return;
+  const d = p.drag;
+  if (!d.moved) { if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 9) return; d.moved = true; beginDrag(p, d.sx, d.sy); }
+  p.x = e.clientX - p.ox; p.y = e.clientY - p.oy; apply(p);
+  const inTray = e.clientX >= trayRect.left && e.clientX <= trayRect.right && e.clientY >= trayRect.top && e.clientY <= trayRect.bottom;
+  const tl = visualTL(p), snap = inTray ? null : findSnap(p, tl.x, tl.y);
+  const key = snap ? snap.gx + ',' + snap.gy + ',' + snap.ok : '';
+  if (key !== p.ghostKey) { p.ghostKey = key; showGhost(p, snap); }
+}
+function onUp(e, p) {
+  if (e.pointerId !== p.pointer) return;
+  const d = p.drag; p.pointer = null; p.drag = null; p.el.classList.remove('dragging');
+  if (!d) return;
+  if (!d.moved) { if (e.type === 'pointerup' && performance.now() - d.t < 600 && !S.solved) turn(p, false); return; }
+  p.x += p.ox * (1 - p.s); p.y += p.oy * (1 - p.s); p.ox = 0; p.oy = 0; p.s = 1; apply(p);
+  p.ghostKey = ''; showGhost(p, null);
+  const inTray = e.clientX >= trayRect.left && e.clientX <= trayRect.right && e.clientY >= trayRect.top && e.clientY <= trayRect.bottom;
+  const snap = inTray || S.solved ? null : findSnap(p, p.x, p.y);
+  if (!snap) sendHome(p, true);
+  else { p.gx = snap.gx; p.gy = snap.gy; placeOnBoard(p, 'fast'); if (snap.ok) thunk(p); else sfx('snap'); }
+  markAll(); check();
+}
+function thunk(p) {
+  setTimeout(() => { p.svg.classList.remove('spin', 'flip', 'thunk'); void p.svg.getBoundingClientRect(); p.svg.classList.add('thunk'); sparkle(p); sfx('fit'); }, 100);
+}
+function turn(p, flip) {
+  const old = dims(p.cells), tl = visualTL(p);
+  p.cells = flip ? flipX(p.cells) : rotCW(p.cells);
+  const nw = dims(p.cells);
+  renderPiece(p);
+  p.svg.classList.remove('spin', 'flip', 'thunk'); void p.svg.getBoundingClientRect(); p.svg.classList.add(flip ? 'flip' : 'spin');
+  if (p.where === 'board') {
+    refreshBoard();
+    const snap = findSnap(p, B.x + (p.gx + (old.w - nw.w) / 2) * C, B.y + (p.gy + (old.h - nw.h) / 2) * C) || { gx: p.gx, gy: p.gy, ok: false };
+    p.gx = snap.gx; p.gy = snap.gy; placeOnBoard(p, 'fast');
+    void tl;
+  } else sendHome(p, false);
+  sfx('turn'); markAll(); check();
+}
+
+/* ---------- 진행 ---------- */
+function setDay(d, msg) {
+  hideModal();
+  S.day = d; S.solved = false; S.hints = 0;
+  ui.board.classList.remove('solved');
+  ui.goalDay.textContent = d + '일';
+  for (const p of pieces) { p.pointer = null; p.drag = null; p.cells = norm(SHAPES[p.id]); p.el.classList.remove('locked', 'sel', 'bad', 'dragging'); sendHome(p, true); }
+  drawBoard(); startClock();
+  if (msg) toast(msg);
+}
+function check() {
+  if (S.solved) return;
+  const occ = occupied(null);
+  for (const p of pieces) if (p.where !== 'board' || !fits(p, p.gx, p.gy, occupied(p))) return;
+  if (occ.size !== 30) return;
+  S.solved = true; stopClock();
+  for (const p of pieces) p.el.classList.add('locked');
+  ui.board.classList.add('solved');
+  sfx('win'); confetti();
+  const secs = Math.round((Date.now() - S.startedAt) / 1000);
+  setTimeout(() => showModal(
+    `<h3>${S.day}일 성공!</h3><p>${fmt(secs)} 만에 ${S.day}일만 남기고 판을 다 채웠어요.${S.hints ? ` 힌트를 ${S.hints}번 썼어요.` : ''}</p>
+     <p class="note">같은 날짜도 답이 여러 가지예요. 친구와 서로 다른 답을 찾았는지 비교해 보세요.</p>`,
+    [{ label: '판 그대로 보기', fn: hideModal }, { label: '같은 날 다시', fn: () => setDay(S.day) }, { label: '다른 날짜', primary: true, fn: randomDay }]
+  ), 700);
+}
+function randomDay() { let d; do { d = 1 + Math.floor(Math.random() * 31); } while (d === S.day); setDay(d, `${d}일을 남겨 보세요`); }
+
+// 힌트: 지금 맞게 놓인 조각을 최대한 살리는 정답을 골라, 아직 안 맞는 조각 하나를 제자리에 놓아 준다
+function hint() {
+  if (S.solved) return;
+  const ids = LEVELS[S.level].ids;
+  const sols = solve(ids, S.day, [], 5000);
+  const onBoard = pieces.filter(p => p.where === 'board' && p.pointer === null);
+  const same = (p, s) => s.gx === p.gx && s.gy === p.gy && keyOf(s.cells) === keyOf(p.cells);
+  let best = null, bestScore = -1;
+  for (const sol of sols) {
+    let sc = 0;
+    for (const p of onBoard) { const s = sol.find(q => q.id === p.id); if (s && same(p, s)) sc++; }
+    if (sc > bestScore) { bestScore = sc; best = sol; }
+  }
+  if (!best) return;
+  const wrong = onBoard.filter(p => !same(p, best.find(q => q.id === p.id)));
+  const todo = best.filter(s => { const p = pieces.find(q => q.id === s.id); return !(p.where === 'board' && same(p, s)); });
+  if (!todo.length) return;
+  const s = todo[Math.floor(Math.random() * todo.length)];
+  const p = pieces.find(q => q.id === s.id);
+  // 힌트 자리를 막고 있는 다른 조각은 상자로 돌려보낸다
+  const need = new Set(s.cells.map(([x, y]) => (x + s.gx) + ',' + (y + s.gy)));
+  let moved = 0;
+  for (const q of wrong) {
+    if (q === p) continue;
+    if (q.cells.some(([x, y]) => need.has((x + q.gx) + ',' + (y + q.gy)))) { sendHome(q, true); moved++; }
+  }
+  p.pointer = null; p.drag = null; p.el.classList.remove('dragging');
+  p.cells = s.cells.map(c => c.slice()); p.gx = s.gx; p.gy = s.gy;
+  renderPiece(p); placeOnBoard(p, true); p.el.style.zIndex = ++zTop; select(p);
+  S.hints++;
+  setTimeout(() => thunk(p), 200);
+  toast(moved ? `${p.id} 조각을 놓고, 그 자리를 막던 조각 ${moved}개를 빼 두었어요` : `${p.id} 조각 자리를 알려 줬어요`);
+  markAll(); check();
+}
+
+/* ---------- 시계 ---------- */
+const fmt = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+function startClock() { S.startedAt = Date.now(); clearInterval(S.timerId); S.timerId = setInterval(tickClock, 500); tickClock(); }
+function stopClock() { clearInterval(S.timerId); }
+function tickClock() { ui.clock.textContent = fmt(Math.floor((Date.now() - S.startedAt) / 1000)); }
+
+/* ---------- 창, 알림 ---------- */
+function showModal(html, buttons, kind) {
+  ui.card.innerHTML = html + '<div class="actions"></div>';
+  const act = ui.card.querySelector('.actions');
+  for (const b of buttons || []) {
+    const el = document.createElement('button'); el.className = 'btn' + (b.primary ? ' primary' : '');
+    el.textContent = b.label; el.addEventListener('click', b.fn); act.appendChild(el);
+  }
+  ui.modal.dataset.kind = kind || ''; ui.modal.hidden = false;
+}
+function hideModal() { ui.modal.hidden = true; }
+ui.modal.addEventListener('click', e => { if (e.target === ui.modal && ui.modal.dataset.kind) hideModal(); });
+function toast(t) { ui.toast.textContent = t; ui.toast.classList.add('show'); clearTimeout(S.toastT); S.toastT = setTimeout(() => ui.toast.classList.remove('show'), 2200); }
+
+function openPicker() {
+  let html = '<h3>남길 날짜 고르기</h3><p class="note">고른 날짜 칸만 남기고 나머지를 채워요.</p><div class="days">';
+  for (let d = 1; d <= 31; d++) html += `<button data-d="${d}" class="${d === S.day ? 'on' : ''}">${d}</button>`;
+  showModal(html + '</div>', [{ label: '닫기', fn: hideModal }], 'picker');
+  ui.card.querySelectorAll('[data-d]').forEach(b => b.addEventListener('click', () => setDay(+b.dataset.d)));
+}
+function openSettings() {
+  const render = () => {
+    showModal(
+      `<h3>설정</h3>
+       <div class="row"><span>난이도</span><div class="seg">${Object.entries(LEVELS).map(([k, v]) => `<button data-lv="${k}" class="${S.level === k ? 'on' : ''}">${v.label}</button>`).join('')}</div></div>
+       <p class="note">보통은 어느 날짜든 답이 3가지 이상이에요. 어려움은 조각 묶음이 달라서 답이 1가지뿐인 날짜도 있어요. 난이도를 바꾸면 처음부터 다시 시작해요.</p>
+       <div class="row"><span>효과음</span><div class="seg"><button data-snd="1" class="${S.sound ? 'on' : ''}">켜기</button><button data-snd="0" class="${S.sound ? '' : 'on'}">끄기</button></div></div>`,
+      [{ label: '닫기', primary: true, fn: hideModal }], 'settings');
+    ui.card.querySelectorAll('[data-lv]').forEach(b => b.addEventListener('click', () => {
+      if (b.dataset.lv === S.level) return;
+      S.level = b.dataset.lv; buildPieces(); layout(); setDay(S.day); openSettings();
+    }));
+    ui.card.querySelectorAll('[data-snd]').forEach(b => b.addEventListener('click', () => { S.sound = b.dataset.snd === '1'; render(); }));
+  };
+  render();
+}
+
+/* ---------- 소리, 효과 ---------- */
+let AC = null;
+function unlockAudio() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { return; } } if (AC.state === 'suspended') AC.resume(); }
+function tone(f, d, type = 'sine', vol = .12, delay = 0) {
+  if (!AC || !S.sound) return;
+  const t = AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.value = f; g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+  o.connect(g).connect(AC.destination); o.start(t); o.stop(t + d + .03);
+}
+function sfx(k) {
+  if (k === 'snap') tone(420, .07, 'triangle', .07);
+  if (k === 'turn') tone(700, .06, 'triangle', .07);
+  if (k === 'fit') { tone(150, .14, 'sine', .3); tone(1250, .035, 'square', .05); tone(880, .09, 'triangle', .08, .05); }
+  if (k === 'win') [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, .22, 'triangle', .12, i * .1));
+}
+function fxCtx() { const cv = ui.fx, ctx = cv.getContext('2d'), dpr = devicePixelRatio || 1; cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); return ctx; }
+function sparkle(p) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const ctx = fxCtx(), sp = [];
+  for (const [x, y] of p.cells) for (let i = 0; i < 4; i++) { const a = Math.random() * 7, v = 3 + Math.random() * 4; sp.push({ x: B.x + (x + p.gx + .5) * C, y: B.y + (y + p.gy + .5) * C, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: 3 + Math.random() * 3 }); }
+  const t0 = performance.now();
+  (function f(t) { const k = (t - t0) / 450; ctx.clearRect(0, 0, innerWidth, innerHeight); if (k >= 1) return;
+    for (const q of sp) { q.x += q.vx; q.y += q.vy; q.vx *= .9; q.vy *= .9; ctx.globalAlpha = 1 - k; ctx.fillStyle = '#FFE066'; ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, 7); ctx.fill(); }
+    ctx.globalAlpha = 1; requestAnimationFrame(f); })(t0);
+}
+function confetti() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const ctx = fxCtx(), cols = Object.values(COLORS), r = ui.board.getBoundingClientRect();
+  const ps = Array.from({ length: 160 }, () => ({ x: r.left + r.width / 2, y: r.top + r.height / 2, vx: (Math.random() - .5) * 22, vy: -Math.random() * 20 - 6, s: 8 + Math.random() * 12, r: Math.random() * 6, vr: (Math.random() - .5) * .4, c: cols[Math.floor(Math.random() * cols.length)] }));
+  const t0 = performance.now();
+  (function f(t) { ctx.clearRect(0, 0, innerWidth, innerHeight);
+    for (const q of ps) { q.vy += .6; q.vx *= .99; q.x += q.vx; q.y += q.vy; q.r += q.vr; ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.r); ctx.fillStyle = q.c; ctx.fillRect(-q.s / 2, -q.s / 2, q.s, q.s); ctx.strokeStyle = '#14213D'; ctx.lineWidth = 2; ctx.strokeRect(-q.s / 2, -q.s / 2, q.s, q.s); ctx.restore(); }
+    if (t - t0 < 2200) requestAnimationFrame(f); else ctx.clearRect(0, 0, innerWidth, innerHeight); })(t0);
+}
+
+/* ---------- 버튼 ---------- */
+$('#btnToday').addEventListener('click', () => setDay(new Date().getDate(), `오늘은 ${new Date().getDate()}일이에요`));
+$('#btnPick').addEventListener('click', openPicker);
+$('#btnRandom').addEventListener('click', randomDay);
+$('#btnHint').addEventListener('click', () => { unlockAudio(); hint(); });
+$('#btnReset').addEventListener('click', () => setDay(S.day, '조각을 모두 상자로 돌려보냈어요'));
+$('#btnSettings').addEventListener('click', openSettings);
+
+/* ---------- 확대 막기 (여러 명이 동시에 만져도 화면이 커지지 않게) ---------- */
+['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('touchmove', e => { if (e.touches.length > 1 || !e.target.closest('#card')) e.preventDefault(); }, { passive: false });
+document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+let lastTouchEnd = 0;
+document.addEventListener('touchend', e => { const now = Date.now(); if (now - lastTouchEnd < 350 && !e.target.closest('button')) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+const relayout = () => { clearTimeout(rt); rt = setTimeout(layout, 100); };
+addEventListener('resize', relayout);
+if (window.visualViewport) visualViewport.addEventListener('resize', relayout);
+if (window.ResizeObserver) { const ro = new ResizeObserver(relayout); ro.observe(ui.boardPanel); ro.observe(ui.trayArea); }
+
+/* ---------- 시작 ---------- */
+buildPieces(); layout(); setDay(S.day);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+})();
+</script>
+</body>
+</html>
